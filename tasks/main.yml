@@ -1,0 +1,40 @@
+---
+- name: apt-get update
+  raw: apt-get update -qq 
+- name: Install python 2.7 
+  raw: apt-get install -y python
+- name: Install aptitude 
+  raw: apt-get install -y aptitude
+- name: Upgrading the system
+  apt: upgrade=yes
+
+- name: Testing if the system need reboot
+  stat: path=/var/run/reboot-required
+  register: check
+- debug: msg="reboot-required exists? {{ check.stat.exists }}"
+
+- name: Reboot the system
+  shell: sleep 2 && shutdown -r now "Reboot required for ansible"
+  async: 1
+  poll: 0
+  become: true
+  ignore_errors: true
+  register: rebooting
+  when: check.stat.exists == True
+
+
+- name: Wait for server to restart
+  local_action: 
+    module: wait_for host="{{ inventory_hostname }}" port=22 delay=15 timeout=300
+  become: false
+  when: rebooting.changed
+
+- name: Install tooling
+  apt: name={{ item }} state=present
+  with_items:
+    - wget
+    - curl
+    - vim
+    - software-properties-common
+- name: Gather Facts
+  setup:
